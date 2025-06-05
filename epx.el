@@ -209,13 +209,13 @@ If a shell window already exists, reuse it. Otherwise open one.
 When called interactively, prompt for COMMAND with completion from history.
 
 Additionally, always export an environment variable:
-  __EPX_BUFFER_=<full-path-of-current-buffer’s-file-or-empty>
+  __EPX_BUFFER_=<full-path-of-current-buffer’s-file-or-\"none\">
 before running the command."
   (interactive
    (list (epx--read-shell-command)))
   (let* ((root        (epx--current-project-root))
-         ;; 1) Capture the file visiting this buffer (or empty string).
-         (buffer-file (or (buffer-file-name) ""))
+         ;; 1) If buffer visits a file, take its path; else "none"
+         (buffer-file (or (buffer-file-name) "none"))
          ;; 2) Original :env from the plist (may be nil).
          (orig-env    (plist-get command :env))
          ;; 3) Prepend __EPX_BUFFER_ to whatever env user specified.
@@ -237,10 +237,10 @@ before running the command."
          (cmd     (string-join (list env-exports raw-cmd) " "))
          (use-compilation (plist-get command :compile)))
     (if use-compilation
-        ;; For a compilation buffer, exports must be in the same shell invocation.
+        ;; For compilation, run all in one go:
         (let ((default-directory root))
-          (compilation-start cmd nil))  ;; TODO: consider project-compile later
-      ;; Otherwise, send to a reused/created shell buffer:
+          (compilation-start cmd nil))
+      ;; Otherwise, use a persistent shell buffer:
       (let* ((win  (epx--get-or-create-shell-window root))
              (proc (get-buffer-process (window-buffer win))))
         (select-window win)
