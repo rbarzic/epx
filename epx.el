@@ -216,7 +216,7 @@ before running the command."
   (let* ((root        (epx--current-project-root))
          (orig-env    (plist-get command :env))
          ;; Compute the full path of the current buffer’s file, or "" if none.
-         (buffer-file (or (buffer-file-name) ""))
+         (buffer-file (or (buffer-file-name) "none"))
          ;; Prepend our __EPX_BUFFER_ var to whatever :env the user had.
          (env-list    (cons (list :name "__EPX_BUFFER_" :value buffer-file)
                             orig-env))
