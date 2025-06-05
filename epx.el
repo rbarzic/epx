@@ -60,6 +60,7 @@
 (require 'files)
 (require 'files-x)
 (require 'comint)
+(require 'dired)  ;; for dired-current-directory
 
 
 ;; --- Custom variables and handling ---
@@ -209,15 +210,25 @@ If a shell window already exists, reuse it. Otherwise open one.
 When called interactively, prompt for COMMAND with completion from history.
 
 Additionally, always export an environment variable:
-  __EPX_BUFFER_=<full-path-of-current-buffer’s-file-or-\"none\">
+  __EPX_BUFFER_=<file-or-dired-directory-or-\"none\">
 before running the command."
   (interactive
    (list (epx--read-shell-command)))
-  (let* ((root        (epx--current-project-root))
-         ;; 1) If buffer visits a file, take its path; else "none"
-         (buffer-file (or (buffer-file-name) "none"))
+  (let* ((root (epx--current-project-root))
+         ;; 1) Determine what to set __EPX_BUFFER_ to:
+         (buffer-file
+          (cond
+           ((buffer-file-name)
+            ;; if buffer is visiting a file, use its full path
+            (buffer-file-name))
+           ((derived-mode-p 'dired-mode)
+            ;; if in Dired, use the directory Dired is showing
+            (dired-current-directory))
+           (t
+            ;; otherwise, “none”
+            "none")))
          ;; 2) Original :env from the plist (may be nil).
-         (orig-env    (plist-get command :env))
+         (orig-env (plist-get command :env))
          ;; 3) Prepend __EPX_BUFFER_ to whatever env user specified.
          (combined-env
           (cons (list :name "__EPX_BUFFER_" :value buffer-file)
@@ -234,14 +245,14 @@ before running the command."
          ;; 5) The raw command text from the plist.
          (raw-cmd (plist-get command :command))
          ;; 6) Final string: all exports, then the actual command.
-         (cmd     (string-join (list env-exports raw-cmd) " "))
+         (cmd (string-join (list env-exports raw-cmd) " "))
          (use-compilation (plist-get command :compile)))
     (if use-compilation
         ;; For compilation, run all in one go:
         (let ((default-directory root))
           (compilation-start cmd nil))
       ;; Otherwise, use a persistent shell buffer:
-      (let* ((win  (epx--get-or-create-shell-window root))
+      (let* ((win (epx--get-or-create-shell-window root))
              (proc (get-buffer-process (window-buffer win))))
         (select-window win)
         ;; Send "export ...; export ...; <command>\n"
@@ -256,9 +267,7 @@ before running the command."
   (if (y-or-n-p (format "Are you sure you want to remove command %s?"
                         (plist-get command :name)))
       (let* ((local-project-cmds (epx--read-commands-from-file))
-             (updated          (cl-remove command
-                                          local-project-cmds
-                                          :test #'equal)))
+             (updated (cl-remove command local-project-cmds :test #'equal)))
         (epx--write-commands-to-file updated))))
 
 
@@ -287,9 +296,9 @@ ENV-VARS and COMPILE default to nil."
            (warn "Empty value, skipping this variable"))))
      (list cmd name env-vars compile)))
   (epx--create-commands-file)
-  (let ((new-cmd (list :name    name
+  (let ((new-cmd (list :name name
                        :command cmd
-                       :env     env-vars
+                       :env env-vars
                        :compile compile)))
     (epx--record-command new-cmd)))
 
@@ -300,10 +309,10 @@ If a command with the same name already exists, throw an error."
   (let ((locals-file (epx--commands-file)))
     (when (file-exists-p locals-file)
       (let* ((existing-cmds (epx--read-commands-from-file))
-             (duplicate    (cl-find-if (lambda (cmd)
-                                         (string= (plist-get cmd :name)
-                                                  (plist-get command :name)))
-                                       existing-cmds)))
+             (duplicate (cl-find-if (lambda (cmd)
+                                      (string= (plist-get cmd :name)
+                                               (plist-get command :name)))
+                                    existing-cmds)))
         (if duplicate
             (error "A command with the name '%s' already exists"
                    (plist-get command :name))
