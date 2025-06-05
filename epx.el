@@ -35,15 +35,15 @@
 ;; style of Makefile, but more Emacs-specific and tailored for this need.
 ;; The separate window for the command execution is inspired by modern IDEs.
 
-;; User can create a command bt calling ‘epx-add-command’. They will
+;; User can create a command by calling ‘epx-add-command’. They will
 ;; be prompted for the command itself, its name, whether to use
-;; compilation buffer for this command, andenvironment variables -
+;; compilation buffer for this command, and environment variables—
 ;; one name and one value at a time.
 
 ;; Then created command can be executed by calling ‘epx-run-command-in-shell’.
 ;; This command provides completion for command name. It runs the command,
-;; setting environment variables temporarily. Command is ran in a separate
-;; window, which will contail either shell or compilation buffer, depending
+;; setting environment variables temporarily. Command is run in a separate
+;; window, which will contain either shell or compilation buffer, depending
 ;; on command’s :compile option.
 
 ;; Commands are stored in dir-locals-file (e.g. .dir-locals.el) or a dedicated
@@ -52,7 +52,7 @@
 ;; The package can work with only one commands file per project.
 
 ;; Warning! Only works in Unix-like systems for now due to
-;; how environment variables are processed.  This is temporary.
+;; how environment variables are processed. This is temporary.
 
 ;;; Code:
 (require 'project)
@@ -77,17 +77,17 @@
 
 (defvar epx--storage-backends
   '((locals . ((read . epx--read-commands-from-locals)
-	       (write . epx--write-commands-to-locals)))
-    (eld . ((read . epx--read-commands-from-eld)
-	    (write . epx--write-command-to-eld)))))
-
+               (write . epx--write-commands-to-locals)))
+    (eld    . ((read . epx--read-commands-from-eld)
+               (write . epx--write-command-to-eld)))))
 
 (defun epx--get-backend-function (op)
   "Get value for OP and ‘epx-commands-file-type’ from ‘epx--storage-backends’."
-    (let ((backend (assq epx-commands-file-type epx--storage-backends)))
+  (let ((backend (assq epx-commands-file-type epx--storage-backends)))
     (if backend
         (alist-get op (cdr backend))
-      (user-error "Variable epx-commands-file-type has invalid value: %s. Valid values are: ’locals, ’eld" epx-commands-file-type))))
+      (user-error "Variable epx-commands-file-type has invalid value: %s. Valid values are: ’locals, ’eld"
+                  epx-commands-file-type))))
 
 ;; --- End Custom variables and handling ---
 
@@ -96,16 +96,16 @@
 (defun epx--find-command-by-prop (prop-name prop-value)
   "Find a command in commands storage by PROP-NAME and PROP-VALUE."
   (cl-find-if (lambda (cmd)
-		(equal (plist-get cmd prop-name) prop-value))
-	      (epx--read-commands-from-file)))
-
+                (equal (plist-get cmd prop-name) prop-value))
+              (epx--read-commands-from-file)))
 
 (defun epx--annotate (candidate)
-  "Show command for CANDIDATE along with it’s name on completion."
+  "Show command for CANDIDATE along with its name on completion."
   (when candidate
     (format "%s %s"
-	    (propertize " " 'display '(space :align-to 30))
-	    (propertize (plist-get (epx--find-command-by-prop :name candidate) :command) 'face 'completions-annotations))))
+            (propertize " " 'display '(space :align-to 30))
+            (propertize (plist-get (epx--find-command-by-prop :name candidate) :command)
+                        'face 'completions-annotations))))
 
 ;; --- End Annotation ---
 
@@ -115,21 +115,19 @@
   "Return current project’s root.  If there’s no project, throw an error."
   (if (project-current)
       (project-root (project-current))
-    (error "No project found.  This only works in projects")))
-
+    (error "No project found. This only works in projects")))
 
 (defun epx--commands-file-name ()
   "Get file name of commands file based on `epx-commands-file-type'."
   (cl-case epx-commands-file-type
     (locals dir-locals-file)
     (eld ".epx.eld")
-    (t (user-error "Variable epx-commands-file-type has invalid value: %s. Valid values are: ’locals, ’eld" epx-commands-file-type))))
-
+    (t (user-error "Variable epx-commands-file-type has invalid value: %s. Valid values are: ’locals, ’eld"
+                   epx-commands-file-type))))
 
 (defun epx--commands-file ()
   "Return the path to the current project's command storage."
-    (expand-file-name (epx--commands-file-name) (epx--current-project-root)))
-
+  (expand-file-name (epx--commands-file-name) (epx--current-project-root)))
 
 (defun epx--create-commands-file ()
   "Create commands file in current project root if not exists."
@@ -137,27 +135,23 @@
     (unless (file-exists-p file)
       (write-region "" nil file))))
 
-
 (defun epx--read-commands-from-locals ()
   "Read project commands from ‘.dir-locals.el’."
   (hack-dir-local-variables)
   (alist-get 'local-project-cmds file-local-variables-alist nil nil #'equal))
 
-
 (defun epx--read-commands-from-eld ()
   "Read project commands from ‘.epx.eld’."
   (with-temp-buffer
-	   (insert-file-contents (epx--commands-file))
-	   (goto-char (point-min))
-	   (if (eobp)
-               nil
-             (read (current-buffer)))))
-
+    (insert-file-contents (epx--commands-file))
+    (goto-char (point-min))
+    (if (eobp)
+        nil
+      (read (current-buffer)))))
 
 (defun epx--read-commands-from-file ()
   "Read project commands from commands file."
   (funcall (epx--get-backend-function 'read)))
-
 
 (defun epx--write-commands-to-locals (commands)
   "Write COMMANDS to ‘.dir-locals.el’."
@@ -167,15 +161,13 @@
     (save-buffer)
     (kill-buffer)))
 
-
-(defun epx--write-command-to-eld(commands)
+(defun epx--write-command-to-eld (commands)
   "Write COMMANDS to ‘.epx.eld’."
   (with-temp-file (epx--commands-file)
-	   (let ((print-length nil)
-		 (print-level  nil))
-	     (prin1 commands (current-buffer)))))
+    (let ((print-length nil)
+          (print-level  nil))
+      (prin1 commands (current-buffer)))))
 
-  
 (defun epx--write-commands-to-file (commands)
   "Write COMMANDS to commands file depending on the `epx-commands-file-type'."
   (funcall (epx--get-backend-function 'write) commands))
@@ -189,7 +181,8 @@
          (cmds (if (file-exists-p commands-file)
                    (epx--read-commands-from-file)))
          (history (mapcar (lambda (plist) (plist-get plist :name)) cmds))
-	 (completion-extra-properties (list :annotation-function #'epx--annotate))
+         (completion-extra-properties
+          (list :annotation-function #'epx--annotate))
          (name (completing-read "Project command: " history nil t)))
     (cl-find-if (lambda (plist) (string= (plist-get plist :name) name)) cmds)))
 
@@ -212,23 +205,33 @@
 ;;;###autoload
 (defun epx-run-command-in-shell (&optional command)
   "Run COMMAND in a PROJECT shell buffer.
-If a shell window already exists, reuse it.  Otherwise open one.
-When called interactively, prompt for COMMAND with completion from history."
+If a shell window already exists, reuse it. Otherwise open one.
+When called interactively, prompt for COMMAND with completion from history.
+
+Additionally, always set an environment variable:
+  __EPX_BUFFER_=<full-path-of-current-buffer’s-file-or-empty>
+before running the command."
   (interactive
    (list (epx--read-shell-command)))
-  (let* ((root (epx--current-project-root))
-        
-	 (env-list (plist-get command :env))
-	 (cmd (if env-list
-		  (concat (epx--prepare-env env-list) " " (plist-get command :command))
-		(plist-get command :command)))
-	 (use-compilation (plist-get command :compile)))
+  (let* ((root        (epx--current-project-root))
+         (orig-env    (plist-get command :env))
+         ;; Compute the full path of the current buffer’s file, or "" if none.
+         (buffer-file (or (buffer-file-name) ""))
+         ;; Prepend our __EPX_BUFFER_ var to whatever :env the user had.
+         (env-list    (cons (list :name "__EPX_BUFFER_" :value buffer-file)
+                            orig-env))
+         ;; Build the actual shell command string, including environment.
+         (cmd         (if env-list
+                          (concat (epx--prepare-env env-list) " "
+                                  (plist-get command :command))
+                        (plist-get command :command)))
+         (use-compilation (plist-get command :compile)))
     (if use-compilation
-	(let ((default-directory root))
-	  (compilation-start cmd nil )) ;; TODO: research using project-compile instead
-      (let* ((win (epx--get-or-create-shell-window root))
-	     (proc (get-buffer-process (window-buffer win))))
-	(select-window win)
+        (let ((default-directory root))
+          (compilation-start cmd nil))  ;; TODO: research using project-compile instead
+      (let* ((win  (epx--get-or-create-shell-window root))
+             (proc (get-buffer-process (window-buffer win))))
+        (select-window win)
         (comint-send-string proc (concat cmd "\n"))))))
 
 
@@ -237,18 +240,21 @@ When called interactively, prompt for COMMAND with completion from history."
   "Delete COMMAND from commands file."
   (interactive
    (list (epx--read-shell-command)))
-  (if (y-or-n-p (format "Are you sure you want to remove command %s?" (plist-get command :name)))
-      (let* ((local-project-cmds (epx--read-commands-from-file) )
-             (updated (cl-remove command local-project-cmds :test #'equal)))
-	(epx--write-commands-to-file updated))))
+  (if (y-or-n-p (format "Are you sure you want to remove command %s?"
+                        (plist-get command :name)))
+      (let* ((local-project-cmds (epx--read-commands-from-file))
+             (updated          (cl-remove command
+                                          local-project-cmds
+                                          :test #'equal)))
+        (epx--write-commands-to-file updated))))
 
 
 (defun epx--prepare-env (env-list)
-  "Convert ENV-LIST from the list of plists into a semicolon-separated string."
+  "Convert ENV-LIST from the list of plists into a space-separated string."
   (string-join
    (mapcar (lambda (el)
-	     (concat (plist-get el :name) "=" (plist-get el :value)))
-	   env-list)
+             (concat (plist-get el :name) "=" (plist-get el :value)))
+           env-list)
    " "))
 
 
@@ -259,46 +265,46 @@ CMD and NAME are expected to be non-empty.
 ENV-VARS and COMPILE default to nil."
   (interactive
    (let* ((_ (epx--current-project-root)) ;; to check we’re in the project
-	  (cmd (read-string "Shell command to run: "))
+          (cmd (read-string "Shell command to run: "))
           (_ (when (string-empty-p cmd)
                (user-error "Command cannot be empty")))
           (name (read-string "Command name: "))
           (_ (when (string-empty-p name)
                (user-error "Command name cannot be empty")))
-	  (compile (y-or-n-p "Do you want to use compilation buffer for your command?"))
-	  (env-vars '())
-	  (env-name ""))
+          (compile (y-or-n-p "Do you want to use compilation buffer for your command?"))
+          (env-vars '())
+          (env-name ""))
      (while (progn
-	      (setq env-name (read-string "Environment variable name (empty to finish): "))
-	      (not (string-empty-p env-name)))
+              (setq env-name (read-string "Environment variable name (empty to finish): "))
+              (not (string-empty-p env-name)))
        (let ((env-value (read-string (format "Value for %s: " env-name))))
-
-	 (if (not (string-empty-p env-value))
-	     (push (list :name env-name :value env-value) env-vars)
-	   (warn "Empty value, skipping this variable"))))
-
-       (list cmd name env-vars compile)))
+         (if (not (string-empty-p env-value))
+             (push (list :name env-name :value env-value) env-vars)
+           (warn "Empty value, skipping this variable"))))
+     (list cmd name env-vars compile)))
   (epx--create-commands-file)
-  (let ((new-cmd (list :name name :command cmd :env env-vars :compile compile)))
+  (let ((new-cmd (list :name    name
+                       :command cmd
+                       :env     env-vars
+                       :compile compile)))
     (epx--record-command new-cmd)))
-
-
 
 
 (defun epx--record-command (command)
   "Add COMMAND to commands file.
-If a command with the same name already exists, throw an error"
+If a command with the same name already exists, throw an error."
   (let ((locals-file (epx--commands-file)))
     (when (file-exists-p locals-file)
       (let* ((existing-cmds (epx--read-commands-from-file))
-             (duplicate (cl-find-if (lambda (cmd)
-                                      (string= (plist-get cmd :name)
-                                               (plist-get command :name)))
-                                    existing-cmds)))
+             (duplicate    (cl-find-if (lambda (cmd)
+                                         (string= (plist-get cmd :name)
+                                                  (plist-get command :name)))
+                                       existing-cmds)))
         (if duplicate
-            (error "A command with the name '%s' already exists" (plist-get command :name))
+            (error "A command with the name '%s' already exists"
+                   (plist-get command :name))
           (let ((new-cmds (cons command existing-cmds)))
-              (epx--write-commands-to-file new-cmds)))))))
+            (epx--write-commands-to-file new-cmds)))))))
 
 (provide 'epx)
 
