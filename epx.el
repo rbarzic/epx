@@ -42,9 +42,9 @@
 
 ;; Then created command can be executed by calling ‘epx-run-command-in-shell’.
 ;; This command provides completion for command name. It runs the command,
-;; setting environment variables temporarily. Command is run in a separate
-;; window, which will contain either shell or compilation buffer, depending
-;; on command’s :compile option.
+;; exporting environment variables (including __EPX_BUFFER_) first.
+;; Command is run in a separate window, which will contain either shell
+;; or compilation buffer, depending on command’s :compile option.
 
 ;; Commands are stored in dir-locals-file (e.g. .dir-locals.el) or a dedicated
 ;; file called .epx.eld in the project root.
@@ -208,30 +208,43 @@
 If a shell window already exists, reuse it. Otherwise open one.
 When called interactively, prompt for COMMAND with completion from history.
 
-Additionally, always set an environment variable:
+Additionally, always export an environment variable:
   __EPX_BUFFER_=<full-path-of-current-buffer’s-file-or-empty>
 before running the command."
   (interactive
    (list (epx--read-shell-command)))
   (let* ((root        (epx--current-project-root))
+         ;; 1) Capture the file visiting this buffer (or empty string).
+         (buffer-file (or (buffer-file-name) ""))
+         ;; 2) Original :env from the plist (may be nil).
          (orig-env    (plist-get command :env))
-         ;; Compute the full path of the current buffer’s file, or "" if none.
-         (buffer-file (or (buffer-file-name) "none"))
-         ;; Prepend our __EPX_BUFFER_ var to whatever :env the user had.
-         (env-list    (cons (list :name "__EPX_BUFFER_" :value buffer-file)
-                            orig-env))
-         ;; Build the actual shell command string, including environment.
-         (cmd         (if env-list
-                          (concat (epx--prepare-env env-list) " "
-                                  (plist-get command :command))
-                        (plist-get command :command)))
+         ;; 3) Prepend __EPX_BUFFER_ to whatever env user specified.
+         (combined-env
+          (cons (list :name "__EPX_BUFFER_" :value buffer-file)
+                orig-env))
+         ;; 4) Build a string of `export NAME="VALUE";` for each name/value.
+         (env-exports
+          (string-join
+           (mapcar (lambda (el)
+                     (format "export %s=\"%s\";"
+                             (plist-get el :name)
+                             (plist-get el :value)))
+                   combined-env)
+           " "))
+         ;; 5) The raw command text from the plist.
+         (raw-cmd (plist-get command :command))
+         ;; 6) Final string: all exports, then the actual command.
+         (cmd     (string-join (list env-exports raw-cmd) " "))
          (use-compilation (plist-get command :compile)))
     (if use-compilation
+        ;; For a compilation buffer, exports must be in the same shell invocation.
         (let ((default-directory root))
-          (compilation-start cmd nil))  ;; TODO: research using project-compile instead
+          (compilation-start cmd nil))  ;; TODO: consider project-compile later
+      ;; Otherwise, send to a reused/created shell buffer:
       (let* ((win  (epx--get-or-create-shell-window root))
              (proc (get-buffer-process (window-buffer win))))
         (select-window win)
+        ;; Send "export ...; export ...; <command>\n"
         (comint-send-string proc (concat cmd "\n"))))))
 
 
@@ -249,22 +262,13 @@ before running the command."
         (epx--write-commands-to-file updated))))
 
 
-(defun epx--prepare-env (env-list)
-  "Convert ENV-LIST from the list of plists into a space-separated string."
-  (string-join
-   (mapcar (lambda (el)
-             (concat (plist-get el :name) "=" (plist-get el :value)))
-           env-list)
-   " "))
-
-
 ;;;###autoload
 (defun epx-add-command (&optional cmd name env-vars compile)
   "Add a new command to ‘dir-locals-file’ interactively.
 CMD and NAME are expected to be non-empty.
 ENV-VARS and COMPILE default to nil."
   (interactive
-   (let* ((_ (epx--current-project-root)) ;; to check we’re in the project
+   (let* ((_ (epx--current-project-root)) ;; just to signal error if not in a project
           (cmd (read-string "Shell command to run: "))
           (_ (when (string-empty-p cmd)
                (user-error "Command cannot be empty")))
